@@ -1,0 +1,126 @@
+services:
+  auth_module:
+    build: ./auth
+    platform: linux/amd64
+    container_name: auth_module
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://input-db:5432/input_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=root
+      - JWT_SECRET=a-string-secret-at-least-256-bits-long
+#      JWT_EXPIRATION: 86400000
+    depends_on:
+      - auth-db
+
+  input_module:
+    build: ./input
+    platform: linux/amd64
+    container_name: input_module
+    ports:
+      - "8082:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://input-db:5432/input_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=root
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=guest
+      - RABBITMQ_PASSWORD=guest
+      - RABBITMQ_RATING_EXCHANGE=rating.exchange
+      - RABBITMQ_ROUTING-KEY=rating.calculation
+      - JWT_SECRET=a-string-secret-at-least-256-bits-long
+    depends_on:
+      - input-db
+      - rabbitmq
+
+  math_module:
+    build: ./math
+    platform: linux/amd64
+    container_name: math_module
+    ports:
+      - "8083:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://math-db:5432/math_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=root
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=guest
+      - RABBITMQ_PASSWORD=guest
+      - RABBITMQ_CALC_QUEUE=rating.calculation.command
+      - JWT_SECRET=a-string-secret-at-least-256-bits-long
+    depends_on:
+      - math-db
+      - rabbitmq
+
+#  keycloak:
+#    image: quay.io/keycloak/keycloak:latest
+#    container_name: keycloak
+#    command: start-dev
+#    environment:
+#      - KEYCLOAK_ADMIN=admin
+#      - KEYCLOAK_ADMIN_PASSWORD=admin
+#    volumes:
+#      - keycloak-data:/opt/keycloak/data
+#    ports:
+#      - "8888:8080"
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5673:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbit-data:/var/lib/rabbitmq
+
+  auth-db:
+    image: postgres:14-alpine
+    container_name: auth-db
+    environment:
+      - POSTGRES_DB=auth_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - pg-auth-data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+
+  input-db:
+    image: postgres:14-alpine
+    container_name: input-db
+    environment:
+      - POSTGRES_DB=input_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - pg-input-data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+
+  math-db:
+    image: postgres:14-alpine
+    container_name: math-db
+    environment:
+      - POSTGRES_DB=math_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+    volumes:
+      - pg-math-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+
+volumes:
+  pg-auth-data:
+  pg-input-data:
+  pg-math-data:
+  keycloak-data:
+  rabbit-data:
+
+networks:
+  default:
+    driver: bridge
